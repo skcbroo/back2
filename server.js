@@ -21,7 +21,7 @@ app.post('/api/auth/register', async (req, res) => {
   const senhaHash = await bcrypt.hash(senha, 10);
   try {
     const novoUsuario = await prisma.usuario.create({
-      data: { nome, email, senha: senhaHash, role: 'user' },
+      data: { nome, email, senha: senhaHash, role: 'cliente' }, // <- CORRIGIDO
     });
     res.json({ id: novoUsuario.id });
   } catch (e) {
@@ -136,6 +136,71 @@ app.post('/api/creditos/:id/confirmar', ensureAuthenticated, async (req, res) =>
   } catch (err) {
     console.error('Erro ao confirmar aquisição:', err);
     res.status(500).json({ erro: 'Erro ao confirmar aquisição' });
+  }
+});
+
+// Criar cota manualmente (admin)
+app.post('/api/cotas', ensureAuthenticated, ensureAdmin, async (req, res) => {
+  const { usuarioId, creditoJudicialId, quantidade } = req.body;
+
+  try {
+    const cotaExistente = await prisma.cota.findUnique({
+      where: {
+        usuarioId_creditoJudicialId: {
+          usuarioId,
+          creditoJudicialId,
+        },
+      },
+    });
+
+    if (cotaExistente) {
+      await prisma.cota.update({
+        where: {
+          usuarioId_creditoJudicialId: {
+            usuarioId,
+            creditoJudicialId,
+          },
+        },
+        data: {
+          quantidade: { increment: quantidade },
+        },
+      });
+    } else {
+      await prisma.cota.create({
+        data: {
+          usuarioId,
+          creditoJudicialId,
+          quantidade,
+        },
+      });
+    }
+
+    res.json({ msg: 'Cota registrada com sucesso' });
+  } catch (err) {
+    console.error('Erro ao registrar cota:', err);
+    res.status(500).json({ erro: 'Erro ao registrar cota' });
+  }
+});
+
+// Listar cotas de um usuário
+app.get('/api/usuarios/:id/cotas', ensureAuthenticated, async (req, res) => {
+  const id = parseInt(req.params.id);
+  const solicitanteId = req.user.id;
+  const isAdmin = req.user.role === 'admin';
+
+  if (!isAdmin && id !== solicitanteId) {
+    return res.status(403).json({ erro: "Acesso negado" });
+  }
+
+  try {
+    const cotas = await prisma.cota.findMany({
+      where: { usuarioId: id },
+      include: { creditoJudicial: true }
+    });
+    res.json(cotas);
+  } catch (err) {
+    console.error("Erro ao buscar cotas:", err);
+    res.status(500).json({ erro: "Erro ao buscar cotas do usuário" });
   }
 });
 
