@@ -259,6 +259,17 @@ app.get('/api/usuarios', ensureAuthenticated, ensureAdmin, async (req, res) => {
   });
   res.json(usuarios);
 });
+//banco
+app.get('/teste-db', async (req, res) => {
+  try {
+    const usuarios = await prisma.usuario.findMany({ take: 5 });
+    res.json({ status: 'ok', usuarios });
+  } catch (err) {
+    console.error('Erro ao acessar o banco:', err);
+    res.status(500).json({ erro: 'Banco não acessível', detalhes: err.message });
+  }
+});
+
 
 // Promover usuário a admin (admin)
 app.post('/api/usuarios/promover', ensureAuthenticated, ensureAdmin, async (req, res) => {
