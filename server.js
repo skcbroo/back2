@@ -64,21 +64,45 @@ app.get('/api/creditos', async (req, res) => {
   res.json(creditos);
 });
 
-// Obter um crédito específico por ID
-app.get('/api/creditos/:id', async (req, res) => {
+
+// Obter um crédito específico por ID (inclui cotas do usuário logado)
+app.get('/api/creditos/:id', ensureAuthenticated, async (req, res) => {
   const id = parseInt(req.params.id);
+  const usuarioId = req.user.id;
+
   try {
     const credito = await prisma.creditoJudicial.findUnique({
       where: { id },
-      include: { cotas: { include: { usuario: true } } },
+      include: {
+        cotas: {
+          include: { usuario: true }
+        }
+      }
     });
+
     if (!credito) return res.status(404).json({ erro: 'Crédito não encontrado' });
-    res.json(credito);
+
+    // Verifica se o usuário já possui cotas desse crédito
+    const cotaDoUsuario = await prisma.cota.findUnique({
+      where: {
+        usuarioId_creditoJudicialId: {
+          usuarioId,
+          creditoJudicialId: id
+        }
+      }
+    });
+
+    const cotasDoUsuario = cotaDoUsuario?.quantidade || 0;
+
+    // Retorna os dados do crédito + info personalizada
+    res.json({ ...credito, cotasDoUsuario });
+
   } catch (err) {
     console.error('Erro ao buscar crédito:', err);
     res.status(500).json({ erro: 'Erro interno ao buscar crédito' });
   }
 });
+
 
 // Confirmar aquisição (login obrigatório)
 app.post('/api/creditos/:id/confirmar', ensureAuthenticated, async (req, res) => {
