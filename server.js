@@ -65,8 +65,8 @@ app.get('/api/creditos', async (req, res) => {
 });
 
 
-// Obter um crédito específico por ID (inclui cotas do usuário logado)
-app.get('/api/creditos/:id', ensureAuthenticated, async (req, res) => {
+// Obter um crédito específico por ID 
+app.get('/api/creditos/:id', async (req, res) => {
   const id = parseInt(req.params.id);
   const usuarioId = req.user.id;
 
