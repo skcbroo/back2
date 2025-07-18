@@ -68,7 +68,7 @@ app.get('/api/creditos', async (req, res) => {
 
 
 // Obter um crédito específico por ID 
-app.get('/api/creditos/:id', async (req, res) => {
+app.get('/api/creditos/:id', tryExtractUser, async (req, res) => {
   const id = parseInt(req.params.id);
   const usuarioId = req.user?.id; // ← pode ser undefined
 
