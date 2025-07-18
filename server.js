@@ -192,7 +192,7 @@ app.post('/api/cotas', ensureAuthenticated, ensureAdmin, async (req, res) => {
     });
     const cotasDisponiveis = credito.quantidadeCotas - (cotasUsadas._sum.quantidade || 0);
     if (quantidade > cotasDisponiveis) {
-      return res.status(400).json({ erro: `Quantidade excede as cotas disponíveis (${cotasDisponiveis})` });
+      return res.status(400).json({ erro: Quantidade excede as cotas disponíveis (${cotasDisponiveis}) });
     }
 
     const cotaExistente = await prisma.cota.findUnique({
@@ -275,20 +275,6 @@ app.delete('/api/cotas/:id', ensureAuthenticated, ensureAdmin, async (req, res) 
   } catch (err) {
     console.error("Erro ao remover cota:", err);
     res.status(500).json({ erro: "Erro ao remover cota" });
-  }
-});
-
-// Listar créditos com status 'Cotizando' (p/ uso no AdminCotas)
-app.get('/api/creditos/cotizando', ensureAuthenticated, ensureAdmin, async (req, res) => {
-  try {
-    const creditosCotizando = await prisma.creditoJudicial.findMany({
-      where: { status: 'Cotizando' },
-      select: { id: true, numeroProcesso: true } // ou outros campos que precisar
-    });
-    res.json(creditosCotizando);
-  } catch (err) {
-    console.error("Erro ao listar créditos cotizando:", err);
-    res.status(500).json({ erro: "Erro ao listar créditos cotizando" });
   }
 });
 
@@ -415,7 +401,7 @@ app.post('/api/usuarios/promover', ensureAuthenticated, ensureAdmin, async (req,
     where: { email },
     data: { role: 'admin' },
   });
-  res.json({ msg: `${usuario.nome} agora é admin` });
+  res.json({ msg: ${usuario.nome} agora é admin });
 });
 
 // Rota raiz
@@ -425,4 +411,4 @@ app.get('/', (req, res) => {
 
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+app.listen(PORT, () => console.log(Servidor rodando na porta ${PORT}));
