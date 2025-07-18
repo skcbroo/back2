@@ -4,7 +4,9 @@ import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { ensureAuthenticated, ensureAdmin } from './auth.js';
+//import { ensureAuthenticated, ensureAdmin } from './auth.js';
+import { ensureAuthenticated, ensureAdmin, tryExtractUser } from './auth.js';
+
 
 const app = express();
 const prisma = new PrismaClient();
