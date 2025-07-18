@@ -204,6 +204,52 @@ app.post('/api/cotas', ensureAuthenticated, ensureAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/cotas', ensureAuthenticated, ensureAdmin, async (req, res) => {
+  try {
+    const cotas = await prisma.cota.findMany({
+      include: {
+        usuario: { select: { id: true, nome: true } },
+        creditoJudicial: { select: { id: true, numeroProcesso } },
+      },
+    });
+    res.json(cotas);
+  } catch (err) {
+    console.error("Erro ao listar cotas:", err);
+    res.status(500).json({ erro: "Erro ao listar cotas" });
+  }
+});
+
+app.put('/api/cotas/:id', ensureAuthenticated, ensureAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { usuarioId } = req.body;
+
+  try {
+    const cota = await prisma.cota.update({
+      where: { id: parseInt(id) },
+      data: { usuarioId: parseInt(usuarioId) },
+    });
+    res.json(cota);
+  } catch (err) {
+    console.error("Erro ao editar cota:", err);
+    res.status(500).json({ erro: "Erro ao editar cota" });
+  }
+});
+
+app.delete('/api/cotas/:id', ensureAuthenticated, ensureAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await prisma.cota.delete({
+      where: { id: parseInt(id) },
+    });
+    res.status(204).send();
+  } catch (err) {
+    console.error("Erro ao remover cota:", err);
+    res.status(500).json({ erro: "Erro ao remover cota" });
+  }
+});
+
+
 // Listar cotas de um usuário
 app.get('/api/usuarios/:id/cotas', ensureAuthenticated, async (req, res) => {
   const id = parseInt(req.params.id);
