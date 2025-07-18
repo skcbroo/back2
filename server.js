@@ -292,6 +292,32 @@ app.get('/teste-db', async (req, res) => {
   }
 });
 
+// Listar ativos (cotas) do usuário logado
+app.get('/api/ativos', ensureAuthenticated, async (req, res) => {
+  try {
+    const cotas = await prisma.cota.findMany({
+      where: { usuarioId: req.user.id },
+      include: { creditoJudicial: true },
+    });
+
+    const ativos = cotas.map((cota) => ({
+      id: cota.creditoJudicial.id,
+      numeroProcesso: cota.creditoJudicial.numeroProcesso,
+      valor: cota.creditoJudicial.valor,
+      preco: cota.creditoJudicial.preco,
+      quantidadeCotas: cota.creditoJudicial.quantidadeCotas,
+      desagio: cota.creditoJudicial.desagio,
+      cotasCompradas: cota.quantidade,
+    }));
+
+    res.json(ativos);
+  } catch (err) {
+    console.error("Erro ao buscar ativos:", err);
+    res.status(500).json({ erro: "Erro ao buscar ativos" });
+  }
+});
+
+
 
 // Promover usuário a admin (admin)
 app.post('/api/usuarios/promover', ensureAuthenticated, ensureAdmin, async (req, res) => {
