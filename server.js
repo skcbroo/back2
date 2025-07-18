@@ -278,6 +278,20 @@ app.delete('/api/cotas/:id', ensureAuthenticated, ensureAdmin, async (req, res) 
   }
 });
 
+// Listar créditos com status 'Cotizando' (p/ uso no AdminCotas)
+app.get('/api/creditos/cotizando', ensureAuthenticated, ensureAdmin, async (req, res) => {
+  try {
+    const creditosCotizando = await prisma.creditoJudicial.findMany({
+      where: { status: 'Cotizando' },
+      select: { id: true, numeroProcesso: true } // ou outros campos que precisar
+    });
+    res.json(creditosCotizando);
+  } catch (err) {
+    console.error("Erro ao listar créditos cotizando:", err);
+    res.status(500).json({ erro: "Erro ao listar créditos cotizando" });
+  }
+});
+
 
 // Listar cotas de um usuário
 app.get('/api/usuarios/:id/cotas', ensureAuthenticated, async (req, res) => {
