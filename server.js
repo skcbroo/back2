@@ -209,7 +209,7 @@ app.get('/api/cotas', ensureAuthenticated, ensureAdmin, async (req, res) => {
     const cotas = await prisma.cota.findMany({
       include: {
         usuario: { select: { id: true, nome: true } },
-        creditoJudicial: { select: { id: true, numeroProcesso } },
+        creditoJudicial: { select: { id: true, numeroProcesso:true } },
       },
     });
     res.json(cotas);
