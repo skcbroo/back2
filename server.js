@@ -387,6 +387,28 @@ app.get('/teste-db', async (req, res) => {
   }
 });
 
+// Alterar senha do usuário (somente admin)
+app.put('/api/usuarios/:id/senha', ensureAuthenticated, ensureAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { novaSenha } = req.body;
+
+  if (!novaSenha) return res.status(400).json({ erro: "A nova senha é obrigatória" });
+
+  try {
+    const senhaHash = await bcrypt.hash(novaSenha, 10);
+    await prisma.usuario.update({
+      where: { id: parseInt(id) },
+      data: { senha: senhaHash },
+    });
+
+    res.json({ msg: "Senha atualizada com sucesso" });
+  } catch (err) {
+    console.error("Erro ao alterar senha:", err);
+    res.status(500).json({ erro: "Erro ao alterar senha" });
+  }
+});
+
+
 // Listar ativos (cotas) do usuário logado
 app.get('/api/ativos', ensureAuthenticated, async (req, res) => {
   try {
