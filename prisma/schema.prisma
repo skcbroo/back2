@@ -14,7 +14,7 @@ model Usuario {
   senha    String
   role     String   @default("cliente") // pode ser "admin" ou "cliente"
   pedidos  Pedido[]
-  cotas    Cota[]   // <-- RELAÇÃO com Cotas
+  cotas    Cota[]   // RELAÇÃO com Cotas
 }
 
 model CreditoJudicial {
@@ -30,10 +30,10 @@ model CreditoJudicial {
   adquirido        Boolean   @default(false)
   criadoEm         DateTime  @default(now())
   quantidadeCotas  Int       @default(1)
-  cotasAdquiridas  Int       @default(0) // ✅ NOVO CAMPO ADICIONADO
+  cotasAdquiridas  Int       @default(0)
+  status           String    @default("disponivel") // ✅ NOVO CAMPO ADICIONADO
   cotas            Cota[]
 }
-
 
 model Pedido {
   id        Int      @id @default(autoincrement())
@@ -53,4 +53,3 @@ model Cota {
 
   @@unique([usuarioId, creditoJudicialId]) // Evita duplicação de relação usuário-crédito
 }
-
