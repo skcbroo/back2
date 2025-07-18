@@ -42,11 +42,12 @@ app.post('/api/auth/login', async (req, res) => {
 
 // Criar crédito judicial (admin)
 app.post('/api/creditos', ensureAuthenticated, ensureAdmin, async (req, res) => {
-  const { valor, area, fase, materia, desagio, preco, numeroProcesso, descricao, quantidadeCotas, cotasAdquiridas } = req.body;
+  const { valor, area, fase, materia, desagio, preco, numeroProcesso, descricao, quantidadeCotas, cotasAdquiridas, status } = req.body;
+
 
   try {
     const novoCredito = await prisma.creditoJudicial.create({
-      data: { valor, area, fase, materia, desagio, preco, numeroProcesso, descricao, quantidadeCotas, cotasAdquiridas },
+      data: { valor, area, fase, materia, desagio, preco, numeroProcesso, descricao, quantidadeCotas, cotasAdquiridas, status },
     });
     res.status(201).json(novoCredito);
   } catch (err) {
@@ -286,12 +287,12 @@ app.get('/api/creditos/adquiridos', async (req, res) => {
 // Atualizar crédito (admin)
 app.put('/api/creditos/:id', ensureAuthenticated, ensureAdmin, async (req, res) => {
   const { id } = req.params;
-  const { valor, area, fase, materia, desagio, preco, numeroProcesso, descricao, quantidadeCotas, cotasAdquiridas } = req.body;
+  const { valor, area, fase, materia, desagio, preco, numeroProcesso, descricao, quantidadeCotas, cotasAdquiridas, status } = req.body;
 
   try {
     const atualizado = await prisma.creditoJudicial.update({
       where: { id: Number(id) },
-      data: { valor, area, fase, materia, desagio, preco, numeroProcesso, descricao, quantidadeCotas, cotasAdquiridas },
+      data: { valor, area, fase, materia, desagio, preco, numeroProcesso, descricao, quantidadeCotas, cotasAdquiridas, status },
     });
     res.json(atualizado);
   } catch (err) {
