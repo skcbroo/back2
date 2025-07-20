@@ -4,8 +4,10 @@ import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-//import { ensureAuthenticated, ensureAdmin } from './auth.js';
 import { ensureAuthenticated, ensureAdmin, tryExtractUser } from './auth.js';
+import crypto from "crypto";
+import nodemailer from "nodemailer";
+
 
 
 const app = express();
@@ -57,6 +59,69 @@ app.post('/api/creditos', ensureAuthenticated, ensureAdmin, async (req, res) => 
     res.status(500).json({ erro: 'Erro ao cadastrar crédito', detalhes: err.message });
   }
 });
+
+//Gera token e envia e-mail
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  const usuario = await prisma.usuario.findUnique({ where: { email } });
+
+  if (!usuario) return res.status(404).json({ erro: "Email não encontrado" });
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiracao = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+
+  await prisma.usuario.update({
+    where: { email },
+    data: { tokenRecuperacao: token, tokenExpira: expiracao },
+  });
+
+  const resetLink = `${process.env.FRONT_URL}/resetar-senha/${token}`;
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: "Redefinição de senha",
+    html: `<p>Para redefinir sua senha, clique no link abaixo:</p><a href="${resetLink}">${resetLink}</a>`,
+  });
+
+  res.json({ msg: "E-mail enviado com sucesso" });
+});
+
+//Valida token e salva nova senha
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { token, novaSenha } = req.body;
+
+  const usuario = await prisma.usuario.findFirst({
+    where: {
+      tokenRecuperacao: token,
+      tokenExpira: { gte: new Date() },
+    },
+  });
+
+  if (!usuario) return res.status(400).json({ erro: "Token inválido ou expirado" });
+
+  const senhaHash = await bcrypt.hash(novaSenha, 10);
+
+  await prisma.usuario.update({
+    where: { id: usuario.id },
+    data: {
+      senha: senhaHash,
+      tokenRecuperacao: null,
+      tokenExpira: null,
+    },
+  });
+
+  res.json({ msg: "Senha redefinida com sucesso" });
+});
+
 
 // Listar créditos (público)
 app.get('/api/creditos', async (req, res) => {
