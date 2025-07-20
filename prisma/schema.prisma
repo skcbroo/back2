@@ -8,14 +8,19 @@ datasource db {
 }
 
 model Usuario {
-  id       Int      @id @default(autoincrement())
-  nome     String
-  email    String   @unique
-  senha    String
-  role     String   @default("cliente") // pode ser "admin" ou "cliente"
-  pedidos  Pedido[]
-  cotas    Cota[]   // RELAÇÃO com Cotas
+  id               Int       @id @default(autoincrement())
+  nome             String
+  email            String    @unique
+  senha            String
+  role             String    @default("cliente") // pode ser "admin" ou "cliente"
+  pedidos          Pedido[]
+  cotas            Cota[]    // RELAÇÃO com Cotas
+
+  // Campos para recuperação de senha
+  tokenRecuperacao String?   // token temporário para redefinir senha
+  tokenExpira      DateTime? // validade do token
 }
+
 
 model CreditoJudicial {
   id               Int       @id @default(autoincrement())
