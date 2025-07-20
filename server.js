@@ -20,29 +20,120 @@ app.use(express.json());
 // === ROTAS ===
 
 // Registro
+//app.post('/api/auth/register', async (req, res) => {
+  //const { nome, email, senha } = req.body;
+  //const senhaHash = await bcrypt.hash(senha, 10);
+  //try {
+    //const novoUsuario = await prisma.usuario.create({
+      //data: { nome, email, senha: senhaHash, role: 'cliente' }, // <- CORRIGIDO
+    //});
+   // res.json({ id: novoUsuario.id });
+  //} catch (e) {
+   // res.status(400).json({ erro: 'Email já cadastrado' });
+  //}
+//});
+
+//Registro
 app.post('/api/auth/register', async (req, res) => {
   const { nome, email, senha } = req.body;
-  const senhaHash = await bcrypt.hash(senha, 10);
+
   try {
+    const senhaHash = await bcrypt.hash(senha, 10);
+    const tokenVerificacao = crypto.randomBytes(32).toString('hex');
+
     const novoUsuario = await prisma.usuario.create({
-      data: { nome, email, senha: senhaHash, role: 'cliente' }, // <- CORRIGIDO
+      data: {
+        nome,
+        email,
+        senha: senhaHash,
+        tokenVerificacao,
+        emailVerificado: false,
+        role: 'cliente',
+      },
     });
-    res.json({ id: novoUsuario.id });
-  } catch (e) {
-    res.status(400).json({ erro: 'Email já cadastrado' });
+
+    const link = `${process.env.FRONT_URL}/verificar-email/${tokenVerificacao}`;
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      to: email,
+      subject: "Verifique seu e-mail",
+      html: `<p>Olá, ${nome}!</p><p>Para ativar sua conta, clique no link abaixo:</p><a href="${link}">${link}</a>`,
+    });
+
+    res.status(201).json({ msg: "Usuário criado. Verifique seu e-mail para ativar a conta." });
+  } catch (err) {
+    res.status(400).json({ erro: 'Erro ao cadastrar. E-mail já existe?' });
   }
 });
+
+//Verificar email
+app.get('/api/auth/verificar-email/:token', async (req, res) => {
+  const { token } = req.params;
+
+  try {
+    const usuario = await prisma.usuario.findFirst({
+      where: { tokenVerificacao: token },
+    });
+
+    if (!usuario) {
+      return res.status(400).json({ erro: 'Token inválido ou expirado' });
+    }
+
+    await prisma.usuario.update({
+      where: { id: usuario.id },
+      data: {
+        emailVerificado: true,
+        tokenVerificacao: null,
+      },
+    });
+
+    res.json({ msg: 'E-mail verificado com sucesso. Você já pode fazer login.' });
+  } catch (err) {
+    res.status(500).json({ erro: 'Erro ao verificar e-mail' });
+  }
+});
+
+
+// Login
+//app.post('/api/auth/login', async (req, res) => {
+  //const { email, senha } = req.body;
+ // const usuario = await prisma.usuario.findUnique({ where: { email } });
+ // if (!usuario || !(await bcrypt.compare(senha, usuario.senha))) {
+ //   return res.status(401).json({ erro: 'Credenciais inválidas' });
+//  }
+//  const token = jwt.sign({ id: usuario.id, email: usuario.email, role: usuario.role }, process.env.JWT_SECRET);
+//  res.json({ token, role: usuario.role });
+//});
 
 // Login
 app.post('/api/auth/login', async (req, res) => {
   const { email, senha } = req.body;
   const usuario = await prisma.usuario.findUnique({ where: { email } });
+
   if (!usuario || !(await bcrypt.compare(senha, usuario.senha))) {
     return res.status(401).json({ erro: 'Credenciais inválidas' });
   }
-  const token = jwt.sign({ id: usuario.id, email: usuario.email, role: usuario.role }, process.env.JWT_SECRET);
+
+  if (!usuario.emailVerificado) {
+    return res.status(403).json({ erro: 'Você precisa verificar seu e-mail antes de acessar.' });
+  }
+
+  const token = jwt.sign(
+    { id: usuario.id, email: usuario.email, role: usuario.role },
+    process.env.JWT_SECRET
+  );
+
   res.json({ token, role: usuario.role });
 });
+
 
 // Criar crédito judicial (admin)
 app.post('/api/creditos', ensureAuthenticated, ensureAdmin, async (req, res) => {
