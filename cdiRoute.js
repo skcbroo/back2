@@ -5,6 +5,7 @@ import cheerio from 'cheerio';
 const router = express.Router();
 
 router.get('/cdi', async (req, res) => {
+  console.log("Iniciando scraping do CDI...");
   try {
     const url = 'https://www.bcb.gov.br/acessoinformacao/legado?url=https:%2F%2Fwww.bcb.gov.br%2Fhtms%2Fselic%2Fselicdiarios.asp';
     const { data: html } = await axios.get(url);
