@@ -102,16 +102,6 @@ app.get('/api/auth/verificar-email/:token', async (req, res) => {
 });
 
 
-// Login
-//app.post('/api/auth/login', async (req, res) => {
-  //const { email, senha } = req.body;
- // const usuario = await prisma.usuario.findUnique({ where: { email } });
- // if (!usuario || !(await bcrypt.compare(senha, usuario.senha))) {
- //   return res.status(401).json({ erro: 'Credenciais inválidas' });
-//  }
-//  const token = jwt.sign({ id: usuario.id, email: usuario.email, role: usuario.role }, process.env.JWT_SECRET);
-//  res.json({ token, role: usuario.role });
-//});
 
 // Login
 app.post('/api/auth/login', async (req, res) => {
@@ -333,60 +323,74 @@ app.post('/api/cotas', ensureAuthenticated, ensureAdmin, async (req, res) => {
   }
 
   try {
-    // Verifique se o usuário existe
-    const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId } });
-    if (!usuario) return res.status(404).json({ erro: 'Usuário não encontrado' });
+  // Verifique se o usuário existe
+  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId } });
+  if (!usuario) return res.status(404).json({ erro: 'Usuário não encontrado' });
 
-    // Verifique se o crédito existe
-    const credito = await prisma.creditoJudicial.findUnique({ where: { id: creditoJudicialId } });
-    if (!credito) return res.status(404).json({ erro: 'Crédito judicial não encontrado' });
+  // Verifique se o crédito existe
+  const credito = await prisma.creditoJudicial.findUnique({ where: { id: creditoJudicialId } });
+  if (!credito) return res.status(404).json({ erro: 'Crédito judicial não encontrado' });
 
-    // Verifique cotas disponíveis
-    const cotasUsadas = await prisma.cota.aggregate({
-      where: { creditoJudicialId },
-      _sum: { quantidade: true }
-    });
-    const cotasDisponiveis = credito.quantidadeCotas - (cotasUsadas._sum.quantidade || 0);
-    if (quantidade > cotasDisponiveis) {
-      return res.status(400).json({ erro: `Quantidade excede as cotas disponíveis (${cotasDisponiveis})` });
-    }
+  // Verifique cotas disponíveis
+  const cotasUsadas = await prisma.cota.aggregate({
+    where: { creditoJudicialId },
+    _sum: { quantidade: true }
+  });
+  const cotasDisponiveis = credito.quantidadeCotas - (cotasUsadas._sum.quantidade || 0);
+  if (quantidade > cotasDisponiveis) {
+    return res.status(400).json({ erro: `Quantidade excede as cotas disponíveis (${cotasDisponiveis})` });
+  }
 
-    const cotaExistente = await prisma.cota.findUnique({
+  // Criar ou atualizar cota
+  const cotaExistente = await prisma.cota.findUnique({
+    where: {
+      usuarioId_creditoJudicialId: {
+        usuarioId,
+        creditoJudicialId,
+      },
+    },
+  });
+
+  if (cotaExistente) {
+    await prisma.cota.update({
       where: {
         usuarioId_creditoJudicialId: {
           usuarioId,
           creditoJudicialId,
         },
       },
+      data: {
+        quantidade: { increment: quantidade },
+      },
     });
-
-    if (cotaExistente) {
-      await prisma.cota.update({
-        where: {
-          usuarioId_creditoJudicialId: {
-            usuarioId,
-            creditoJudicialId,
-          },
-        },
-        data: {
-          quantidade: { increment: quantidade },
-        },
-      });
-    } else {
-      await prisma.cota.create({
-        data: {
-          usuarioId,
-          creditoJudicialId,
-          quantidade,
-        },
-      });
-    }
-
-    res.json({ msg: 'Cota registrada com sucesso' });
-  } catch (err) {
-    console.error('Erro ao registrar cota:', err);
-    res.status(500).json({ erro: 'Erro ao registrar cota', detalhes: err.message });
+  } else {
+    await prisma.cota.create({
+      data: {
+        usuarioId,
+        creditoJudicialId,
+        quantidade,
+      },
+    });
   }
+
+  // Atualizar cotasAdquiridas automaticamente após criação/atualização da cota
+  const totalAdquiridas = await prisma.cota.aggregate({
+    where: { creditoJudicialId },
+    _sum: { quantidade: true }
+  });
+
+  await prisma.creditoJudicial.update({
+    where: { id: creditoJudicialId },
+    data: {
+      cotasAdquiridas: totalAdquiridas._sum.quantidade || 0
+    }
+  });
+
+  res.json({ msg: 'Cota registrada com sucesso' });
+} catch (err) {
+  console.error('Erro ao registrar cota:', err);
+  res.status(500).json({ erro: 'Erro ao registrar cota', detalhes: err.message });
+}
 });
 
 app.get('/api/cotas', ensureAuthenticated, ensureAdmin, async (req, res) => {
