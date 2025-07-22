@@ -27,7 +27,7 @@ model Usuario {
 
 
 model CreditoJudicial {
-  id               Int      
+  id               Int       @id @default(autoincrement())
   valor            Float
   area             String
   fase             String
