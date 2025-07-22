@@ -141,13 +141,16 @@ app.post('/api/creditos', ensureAuthenticated, ensureAdmin, async (req, res) => 
   }
 });
 
-// Verificar se crédito já existe pelo número do processo (usado para evitar duplicação)
 app.get('/api/creditos/verificar/:numeroProcesso', ensureAuthenticated, ensureAdmin, async (req, res) => {
-  const { numeroProcesso } = req.params;
+  const numeroProcessoParam = req.params.numeroProcesso;
+  const normalizadoParam = numeroProcessoParam.replace(/[^\d]/g, '');
 
   try {
-    const existente = await prisma.creditoJudicial.findFirst({
-      where: { numeroProcesso },
+    const creditos = await prisma.creditoJudicial.findMany();
+
+    const existente = creditos.find(c => {
+      const normalizadoDB = c.numeroProcesso.replace(/[^\d]/g, '');
+      return normalizadoDB === normalizadoParam;
     });
 
     if (existente) {
