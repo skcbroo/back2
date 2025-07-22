@@ -228,13 +228,21 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 
-// Listar créditos (público)
 app.get('/api/creditos', async (req, res) => {
-  const creditos = await prisma.creditoJudicial.findMany({
-    include: { cotas: true }
-  });
-  res.json(creditos);
+  try {
+    const creditos = await prisma.creditoJudicial.findMany({
+      include: {
+        cotas: true
+      }
+    });
+
+    res.json(creditos);
+  } catch (err) {
+    console.error("Erro ao buscar créditos:", err);
+    res.status(500).json({ erro: "Erro ao buscar créditos" });
+  }
 });
+
 
 
 // Obter um crédito específico por ID 
