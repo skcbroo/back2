@@ -141,6 +141,27 @@ app.post('/api/creditos', ensureAuthenticated, ensureAdmin, async (req, res) => 
   }
 });
 
+// Verificar se crédito já existe pelo número do processo (usado para evitar duplicação)
+app.get('/api/creditos/verificar/:numeroProcesso', ensureAuthenticated, ensureAdmin, async (req, res) => {
+  const { numeroProcesso } = req.params;
+
+  try {
+    const existente = await prisma.creditoJudicial.findFirst({
+      where: { numeroProcesso },
+    });
+
+    if (existente) {
+      res.json({ existe: true, id: existente.id });
+    } else {
+      res.json({ existe: false });
+    }
+  } catch (err) {
+    console.error("Erro ao verificar crédito:", err);
+    res.status(500).json({ erro: "Erro ao verificar crédito" });
+  }
+});
+
+
 //Gera token e envia e-mail
 app.post('/api/auth/forgot-password', async (req, res) => {
   const { email } = req.body;
