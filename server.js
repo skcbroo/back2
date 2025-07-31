@@ -616,6 +616,7 @@ app.get('/api/ativos', ensureAuthenticated, async (req, res) => {
       preco: cota.creditoJudicial.preco,
       quantidadeCotas: cota.creditoJudicial.quantidadeCotas,
       desagio: cota.creditoJudicial.desagio,
+      status: cota.creditoJudicial.status, // ✅ incluído aqui
       cotasCompradas: cota.quantidade,
     }));
 
@@ -625,6 +626,7 @@ app.get('/api/ativos', ensureAuthenticated, async (req, res) => {
     res.status(500).json({ erro: "Erro ao buscar ativos" });
   }
 });
+
 
 
 
