@@ -702,11 +702,23 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
       agrupado[mes] = (agrupado[mes] || 0) + valor;
     }
 
-    const resultado = Object.entries(agrupado)
-      .map(([mes, valor]) => ({ mes, valor }))
-      .sort((a, b) => new Date(`01/${a.mes}`) - new Date(`01/${b.mes}`));
+    // Converter para array ordenado por data real (não apenas por nome do mês)
+    const resultadoOrdenado = Object.entries(agrupado)
+      .map(([mes, valor]) => {
+        const [mesAbrev, ano] = mes.split('/');
+        const dataReal = new Date(`${mesAbrev}/01/${ano}`);
+        return { mes, valor, dataReal };
+      })
+      .sort((a, b) => a.dataReal - b.dataReal);
 
-    res.json(resultado);
+    // Calcular valores acumulados
+    let acumulado = 0;
+    const resultadoAcumulado = resultadoOrdenado.map(({ mes, valor }) => {
+      acumulado += valor;
+      return { mes, valor: acumulado };
+    });
+
+    res.json(resultadoAcumulado);
   } catch (err) {
     console.error("❌ Erro ao calcular retorno projetado:", err);
     res.status(500).json({ erro: "Erro ao calcular retorno projetado" });
@@ -734,6 +746,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
