@@ -685,7 +685,6 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
 
     for (const cota of cotas) {
       const credito = cota.creditoJudicial;
-
       const dataPagamento =
         credito.status === 'Pago' && cota.dataPagamentoReal
           ? new Date(cota.dataPagamentoReal)
@@ -696,35 +695,46 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
       if (!dataPagamento || !credito.quantidadeCotas || credito.quantidadeCotas === 0) continue;
 
       const mes = format(dataPagamento, "MMM/yyyy", { locale: ptBR });
-
-      // Corrigido: calcula retorno proporcional às cotas do cliente
       const retornoPorCota = credito.valor / credito.quantidadeCotas;
       const valorProjetado = cota.quantidade * retornoPorCota;
 
       agrupado[mes] = (agrupado[mes] || 0) + valorProjetado;
     }
 
-    const resultadoOrdenado = Object.entries(agrupado)
+    // Converte para array ordenado
+    const ordenado = Object.entries(agrupado)
       .map(([mes, valor]) => {
         const [mesAbrev, ano] = mes.split('/');
-        const dataReal = new Date(`${mesAbrev}/01/${ano}`);
+        const dataReal = parse(`01/${mesAbrev}/${ano}`, 'dd/MMM/yyyy', new Date(), { locale: ptBR });
         return { mes, valor, dataReal };
       })
       .sort((a, b) => a.dataReal - b.dataReal);
 
-    let acumulado = 0;
-    const resultadoAcumulado = resultadoOrdenado.map(({ mes, valor }) => {
-      acumulado += valor;
-      return { mes, valor: acumulado };
-    });
+    if (ordenado.length === 0) return res.json([]);
 
-    res.json(resultadoAcumulado);
+    // Preenche meses vazios com valor acumulado
+    const preenchido = [];
+    let acumulado = 0;
+    let atual = ordenado[0].dataReal;
+    const fim = ordenado[ordenado.length - 1].dataReal;
+    let i = 0;
+
+    while (!isBefore(fim, atual)) {
+      const mes = format(atual, "MMM/yyyy", { locale: ptBR });
+      if (ordenado[i] && format(ordenado[i].dataReal, "MMM/yyyy", { locale: ptBR }) === mes) {
+        acumulado += ordenado[i].valor;
+        i++;
+      }
+      preenchido.push({ mes, valor: acumulado });
+      atual = addMonths(atual, 1);
+    }
+
+    res.json(preenchido);
   } catch (err) {
     console.error("❌ Erro ao calcular retorno projetado:", err);
     res.status(500).json({ erro: "Erro ao calcular retorno projetado" });
   }
 });
-
 
 // Promover usuário a admin (admin)
 app.post('/api/usuarios/promover', ensureAuthenticated, ensureAdmin, async (req, res) => {
@@ -744,6 +754,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
