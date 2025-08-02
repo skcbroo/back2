@@ -7,6 +7,8 @@ import jwt from 'jsonwebtoken';
 import { ensureAuthenticated, ensureAdmin, tryExtractUser } from './auth.js';
 import crypto from "crypto";
 import nodemailer from "nodemailer";
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 
 
@@ -732,6 +734,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
