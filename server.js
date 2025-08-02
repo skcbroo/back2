@@ -679,6 +679,8 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
       include: { creditoJudicial: true },
     });
 
+    console.log("🐞 Cotas encontradas:", cotas);
+
     const agrupado = {};
 
     for (const cota of cotas) {
@@ -704,10 +706,11 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
 
     res.json(resultado);
   } catch (err) {
-    console.error("Erro ao calcular retorno projetado:", err);
+    console.error("❌ Erro ao calcular retorno projetado:", err);
     res.status(500).json({ erro: "Erro ao calcular retorno projetado" });
   }
 });
+
 
 
 
@@ -729,5 +732,6 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
