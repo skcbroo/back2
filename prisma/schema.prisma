@@ -12,36 +12,36 @@ model Usuario {
   nome              String
   email             String    @unique
   senha             String
-  role              String    @default("cliente") // pode ser "admin" ou "cliente"
+  role              String    @default("cliente") // "admin" ou "cliente"
   pedidos           Pedido[]
-  cotas             Cota[]    // RELAÇÃO com Cotas
+  cotas             Cota[]
 
   // Recuperação de senha
-  tokenRecuperacao  String?   // token temporário para redefinir senha
-  tokenExpira       DateTime? // validade do token
+  tokenRecuperacao  String?
+  tokenExpira       DateTime?
 
   // Verificação de e-mail
   emailVerificado   Boolean   @default(false)
-  tokenVerificacao  String?   // token único enviado para confirmar e-mail
+  tokenVerificacao  String?
 }
 
-
 model CreditoJudicial {
-  id               Int       @id @default(autoincrement())
-  valor            Float
-  area             String
-  fase             String
-  materia          String
-  desagio          Float
-  preco            Float
-  numeroProcesso   String?
-  descricao        String?
-  adquirido        Boolean   @default(false)
-  criadoEm         DateTime  @default(now())
-  quantidadeCotas  Int       @default(1)
-  cotasAdquiridas  Int       @default(0)
-  status           String    @default("disponivel") // ✅ NOVO CAMPO ADICIONADO
-  cotas            Cota[]
+  id                   Int       @id @default(autoincrement())
+  valor                Float
+  area                 String
+  fase                 String
+  materia              String
+  desagio              Float
+  preco                Float
+  numeroProcesso       String?
+  descricao            String?
+  adquirido            Boolean   @default(false)
+  criadoEm             DateTime  @default(now())
+  quantidadeCotas      Int       @default(1)
+  cotasAdquiridas      Int       @default(0)
+  status               String    @default("disponivel")
+  dataEstimadaPagamento DateTime? // ✅ nova coluna para projeção
+  cotas                Cota[]
 }
 
 model Pedido {
@@ -60,5 +60,8 @@ model Cota {
   quantidade        Int
   criadoEm          DateTime         @default(now())
 
-  @@unique([usuarioId, creditoJudicialId]) // Evita duplicação de relação usuário-crédito
+  dataAquisicao     DateTime?        // ✅ nova coluna: quando a cota foi adquirida
+  dataPagamentoReal DateTime?        // ✅ nova coluna: quando foi efetivamente paga
+
+  @@unique([usuarioId, creditoJudicialId])
 }
