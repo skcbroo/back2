@@ -681,12 +681,11 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
       include: { creditoJudicial: true },
     });
 
-    console.log("🐞 Cotas encontradas:", cotas);
-
     const agrupado = {};
 
     for (const cota of cotas) {
       const credito = cota.creditoJudicial;
+
       const dataPagamento =
         credito.status === 'Pago' && cota.dataPagamentoReal
           ? new Date(cota.dataPagamentoReal)
@@ -694,15 +693,17 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
           ? new Date(credito.dataEstimadaPagamento)
           : null;
 
-      if (!dataPagamento) continue;
+      if (!dataPagamento || !credito.quantidadeCotas || credito.quantidadeCotas === 0) continue;
 
       const mes = format(dataPagamento, "MMM/yyyy", { locale: ptBR });
-      const valor = cota.quantidade * credito.preco;
 
-      agrupado[mes] = (agrupado[mes] || 0) + valor;
+      // Corrigido: calcula retorno proporcional às cotas do cliente
+      const retornoPorCota = credito.valor / credito.quantidadeCotas;
+      const valorProjetado = cota.quantidade * retornoPorCota;
+
+      agrupado[mes] = (agrupado[mes] || 0) + valorProjetado;
     }
 
-    // Converter para array ordenado por data real (não apenas por nome do mês)
     const resultadoOrdenado = Object.entries(agrupado)
       .map(([mes, valor]) => {
         const [mesAbrev, ano] = mes.split('/');
@@ -711,7 +712,6 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
       })
       .sort((a, b) => a.dataReal - b.dataReal);
 
-    // Calcular valores acumulados
     let acumulado = 0;
     const resultadoAcumulado = resultadoOrdenado.map(({ mes, valor }) => {
       acumulado += valor;
@@ -724,8 +724,6 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
     res.status(500).json({ erro: "Erro ao calcular retorno projetado" });
   }
 });
-
-
 
 
 // Promover usuário a admin (admin)
@@ -746,6 +744,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
