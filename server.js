@@ -671,6 +671,43 @@ app.get('/api/ativos', ensureAuthenticated, async (req, res) => {
   }
 });
 
+// === RETORNO PROJETADO ===
+app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
+  try {
+    const cotas = await prisma.cota.findMany({
+      where: { usuarioId: req.user.id },
+      include: { creditoJudicial: true },
+    });
+
+    const agrupado = {};
+
+    for (const cota of cotas) {
+      const credito = cota.creditoJudicial;
+      const dataPagamento =
+        credito.status === 'Pago' && cota.dataPagamentoReal
+          ? new Date(cota.dataPagamentoReal)
+          : credito.dataEstimadaPagamento
+          ? new Date(credito.dataEstimadaPagamento)
+          : null;
+
+      if (!dataPagamento) continue;
+
+      const mes = format(dataPagamento, "MMM/yyyy", { locale: ptBR });
+      const valor = cota.quantidade * credito.preco;
+
+      agrupado[mes] = (agrupado[mes] || 0) + valor;
+    }
+
+    const resultado = Object.entries(agrupado)
+      .map(([mes, valor]) => ({ mes, valor }))
+      .sort((a, b) => new Date(`01/${a.mes}`) - new Date(`01/${b.mes}`));
+
+    res.json(resultado);
+  } catch (err) {
+    console.error("Erro ao calcular retorno projetado:", err);
+    res.status(500).json({ erro: "Erro ao calcular retorno projetado" });
+  }
+});
 
 
 
@@ -692,4 +729,5 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
