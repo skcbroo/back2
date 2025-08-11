@@ -470,12 +470,21 @@ app.get('/api/cotas', ensureAuthenticated, ensureAdmin, async (req, res) => {
 
 app.put('/api/cotas/:id', ensureAuthenticated, ensureAdmin, async (req, res) => {
   const { id } = req.params;
-  const { usuarioId } = req.body;
+  const { quantidade, dataAquisicao, dataPagamentoReal } = req.body;
+
+  const data = {};
+  if (quantidade !== undefined) data.quantidade = Number(quantidade);
+  if (dataAquisicao !== undefined) {
+    data.dataAquisicao = dataAquisicao ? new Date(dataAquisicao) : null;
+  }
+  if (dataPagamentoReal !== undefined) {
+    data.dataPagamentoReal = dataPagamentoReal ? new Date(dataPagamentoReal) : null;
+  }
 
   try {
     const cota = await prisma.cota.update({
       where: { id: parseInt(id) },
-      data: { usuarioId: parseInt(usuarioId) },
+      data,
     });
     res.json(cota);
   } catch (err) {
@@ -754,6 +763,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
