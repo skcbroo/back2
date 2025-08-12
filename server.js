@@ -683,6 +683,7 @@ app.get('/api/ativos', ensureAuthenticated, async (req, res) => {
 });
 
 // === RETORNO PROJETADO ===
+// === RETORNO PROJETADO ===
 app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
   try {
     const cotas = await prisma.cota.findMany({
@@ -691,9 +692,12 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
     });
 
     const agrupado = {};
+    const aquisicoes = []; // ← Para calcular o CDI depois
 
     for (const cota of cotas) {
       const credito = cota.creditoJudicial;
+
+      // === CURVA DE RETORNO PROJETADO ===
       const dataPagamento =
         credito.status === 'Pago' && cota.dataPagamentoReal
           ? new Date(cota.dataPagamentoReal)
@@ -701,16 +705,24 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
           ? new Date(credito.dataEstimadaPagamento)
           : null;
 
-      if (!dataPagamento || !credito.quantidadeCotas || credito.quantidadeCotas === 0) continue;
+      if (dataPagamento && credito.quantidadeCotas && credito.quantidadeCotas > 0) {
+        const mes = format(dataPagamento, "MMM/yyyy", { locale: ptBR });
+        const retornoPorCota = credito.valor / credito.quantidadeCotas;
+        const valorProjetado = cota.quantidade * retornoPorCota;
+        agrupado[mes] = (agrupado[mes] || 0) + valorProjetado;
+      }
 
-      const mes = format(dataPagamento, "MMM/yyyy", { locale: ptBR });
-      const retornoPorCota = credito.valor / credito.quantidadeCotas;
-      const valorProjetado = cota.quantidade * retornoPorCota;
-
-      agrupado[mes] = (agrupado[mes] || 0) + valorProjetado;
+      // === CURVA CDI ===
+      if (cota.dataAquisicao && credito.quantidadeCotas && credito.quantidadeCotas > 0) {
+        const valorCota = credito.valor / credito.quantidadeCotas;
+        aquisicoes.push({
+          data: new Date(cota.dataAquisicao),
+          valor: cota.quantidade * valorCota,
+        });
+      }
     }
 
-    // Converte para array ordenado
+    // === ORGANIZA RETORNO PROJETADO ===
     const ordenado = Object.entries(agrupado)
       .map(([mes, valor]) => {
         const [mesAbrev, ano] = mes.split('/');
@@ -719,9 +731,9 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
       })
       .sort((a, b) => a.dataReal - b.dataReal);
 
-    if (ordenado.length === 0) return res.json([]);
+    if (ordenado.length === 0) return res.json({ retornoPorMes: [], comparativoCDI: [] });
 
-    // Preenche meses vazios com valor acumulado
+    // Preenche meses do retorno projetado com valor acumulado
     const preenchido = [];
     let acumulado = 0;
     let atual = ordenado[0].dataReal;
@@ -738,12 +750,43 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
       atual = addMonths(atual, 1);
     }
 
-    res.json(preenchido);
+    // === CALCULA CURVA COMPARATIVA CDI ===
+    const taxaCDIMensal = Math.pow(1 + 0.15, 1 / 12) - 1;
+    const inicioCDI = preenchido[0].mes;
+    const listaMeses = preenchido.map((p) => p.mes);
+
+    // Mapeia cada aquisição individual para sua curva CDI
+    const mapaCDI = {};
+
+    for (const aq of aquisicoes) {
+      let acumulado = aq.valor;
+      let atual = format(aq.data, "MMM/yyyy", { locale: ptBR });
+
+      for (const mes of listaMeses) {
+        if (isBefore(parse(`01/${atual}`, 'dd/MMM/yyyy', new Date(), { locale: ptBR }), parse(`01/${mes}`, 'dd/MMM/yyyy', new Date(), { locale: ptBR }))) {
+          acumulado *= 1 + taxaCDIMensal;
+          atual = mes;
+        }
+
+        mapaCDI[mes] = (mapaCDI[mes] || 0) + acumulado;
+      }
+    }
+
+    const comparativoCDI = listaMeses.map((mes) => ({
+      mes,
+      valor: Number((mapaCDI[mes] || 0).toFixed(2)),
+    }));
+
+    res.json({
+      retornoPorMes: preenchido,
+      comparativoCDI,
+    });
   } catch (err) {
     console.error("❌ Erro ao calcular retorno projetado:", err);
     res.status(500).json({ erro: "Erro ao calcular retorno projetado" });
   }
 });
+
 
 // Promover usuário a admin (admin)
 app.post('/api/usuarios/promover', ensureAuthenticated, ensureAdmin, async (req, res) => {
@@ -763,6 +806,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
