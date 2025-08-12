@@ -795,23 +795,30 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
     }
 
     let montante = 0;
-    let mesAnterior = null;
+let aportesPendentes = [...aquisicoesOrdenadas];
 
-    for (const mes of listaMeses) {
-      for (const aq of aquisicoesOrdenadas) {
-        const mesAq = format(aq.data, "MMM/yyyy", { locale: ptBR });
-        if (mesAq === mes) {
-          montante += aq.valor;
-        }
-      }
+for (const mes of listaMeses) {
+  // Adiciona aportes do mês atual
+  const novosAportes = aportesPendentes.filter((a) => {
+    const mesAq = format(a.data, "MMM/yyyy", { locale: ptBR });
+    return mesAq === mes;
+  });
 
-      if (mesAnterior !== null) {
-        montante *= 1 + taxaCDIMensal;
-      }
+  const totalNovo = novosAportes.reduce((soma, a) => soma + a.valor, 0);
+  montante += totalNovo;
 
-      mapaCDI[mes] = montante;
-      mesAnterior = mes;
-    }
+  // Remove os aportes já contabilizados
+  aportesPendentes = aportesPendentes.filter((a) => {
+    const mesAq = format(a.data, "MMM/yyyy", { locale: ptBR });
+    return mesAq !== mes;
+  });
+
+  // Aplica rendimento do CDI
+  montante *= 1 + taxaCDIMensal;
+
+  mapaCDI[mes] = Number(montante.toFixed(2));
+}
+
 
     const comparativoCDI = listaMeses.map((mes) => ({
       mes,
@@ -847,6 +854,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
