@@ -722,7 +722,7 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
     });
 
     const agrupado = {};
-    const aquisicoes = []; // ← Para calcular o CDI depois
+    const aquisicoes = [];
 
     for (const cota of cotas) {
       const credito = cota.creditoJudicial;
@@ -742,7 +742,7 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
         agrupado[mes] = (agrupado[mes] || 0) + valorProjetado;
       }
 
-      // === CURVA CDI ===
+      // === AQUI DEFINIMOS OS APORTES ===
       if (cota.dataAquisicao && credito.quantidadeCotas && credito.quantidadeCotas > 0) {
         const valorCota = credito.valor / credito.quantidadeCotas;
         aquisicoes.push({
@@ -780,32 +780,29 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
       atual = addMonths(atual, 1);
     }
 
-    // === CALCULA CURVA COMPARATIVA CDI ===
+    // === CALCULA CURVA COMPARATIVA CDI (com aportes acumulados) ===
     const taxaCDIMensal = Math.pow(1 + 0.15, 1 / 12) - 1;
-    const inicioCDI = preenchido[0].mes;
     const listaMeses = preenchido.map((p) => p.mes);
 
-    // Mapeia cada aquisição individual para sua curva CDI
-    const mapaCDI = {};
-
+    // Organiza aportes por mês
+    const aportesPorMes = {};
     for (const aq of aquisicoes) {
-      let acumulado = aq.valor;
-      let atual = format(aq.data, "MMM/yyyy", { locale: ptBR });
-
-      for (const mes of listaMeses) {
-        if (isBefore(parse(`01/${atual}`, 'dd/MMM/yyyy', new Date(), { locale: ptBR }), parse(`01/${mes}`, 'dd/MMM/yyyy', new Date(), { locale: ptBR }))) {
-          acumulado *= 1 + taxaCDIMensal;
-          atual = mes;
-        }
-
-        mapaCDI[mes] = (mapaCDI[mes] || 0) + acumulado;
-      }
+      const mes = format(aq.data, "MMM/yyyy", { locale: ptBR });
+      aportesPorMes[mes] = (aportesPorMes[mes] || 0) + aq.valor;
     }
 
-    const comparativoCDI = listaMeses.map((mes) => ({
-      mes,
-      valor: Number((mapaCDI[mes] || 0).toFixed(2)),
-    }));
+    // Aplica CDI sobre o montante acumulado mês a mês
+    let cdiAcumulado = 0;
+    const comparativoCDI = [];
+
+    for (const mes of listaMeses) {
+      const aporteMes = aportesPorMes[mes] || 0;
+      cdiAcumulado = (cdiAcumulado + aporteMes) * (1 + taxaCDIMensal);
+      comparativoCDI.push({
+        mes,
+        valor: Number(cdiAcumulado.toFixed(2)),
+      });
+    }
 
     res.json({
       retornoPorMes: preenchido,
@@ -816,6 +813,7 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
     res.status(500).json({ erro: "Erro ao calcular retorno projetado" });
   }
 });
+
 
 
 // Promover usuário a admin (admin)
@@ -836,6 +834,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
