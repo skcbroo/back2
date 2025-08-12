@@ -655,6 +655,36 @@ app.put('/api/usuarios/:id/senha', ensureAuthenticated, ensureAdmin, async (req,
   }
 });
 
+app.post('/api/auth/alterar-senha', ensureAuthenticated, async (req, res) => {
+  const { senhaAtual, novaSenha } = req.body;
+
+  try {
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: req.user.id },
+    });
+
+    if (!usuario) {
+      return res.status(404).json({ erro: 'Usuário não encontrado' });
+    }
+
+    const senhaCorreta = await bcrypt.compare(senhaAtual, usuario.senha);
+    if (!senhaCorreta) {
+      return res.status(400).json({ erro: 'Senha atual incorreta' });
+    }
+
+    const novaSenhaHash = await bcrypt.hash(novaSenha, 10);
+    await prisma.usuario.update({
+      where: { id: req.user.id },
+      data: { senha: novaSenhaHash },
+    });
+
+    return res.json({ msg: 'Senha alterada com sucesso' });
+  } catch (err) {
+    console.error("Erro ao alterar senha:", err);
+    return res.status(500).json({ erro: 'Erro interno ao alterar senha' });
+  }
+});
+
 
 // Listar ativos (cotas) do usuário logado
 app.get('/api/ativos', ensureAuthenticated, async (req, res) => {
@@ -806,6 +836,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
