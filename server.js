@@ -782,7 +782,18 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
 
     // === CALCULA CURVA CDI (base: valor de aquisição acumulado) ===
     const taxaCDIMensal = Math.pow(1 + 0.15, 1 / 12) - 1;
-    const listaMeses = preenchido.map((p) => p.mes);
+    const dataInicioCDI = aquisicoesOrdenadas.length > 0
+  ? new Date(Math.min(...aquisicoesOrdenadas.map(a => a.data.getTime())))
+  : ordenado[0].dataReal;
+
+const listaMeses = [];
+let mesCDI = startOfMonth(dataInicioCDI);
+const fimCDI = startOfMonth(ordenado[ordenado.length - 1].dataReal);
+
+while (!isAfter(mesCDI, fimCDI)) {
+  listaMeses.push(format(mesCDI, "MMM/yyyy", { locale: ptBR }));
+  mesCDI = addMonths(mesCDI, 1);
+}
 
     // Ordena aquisições por data
     const aquisicoesOrdenadas = aquisicoes
@@ -848,6 +859,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
