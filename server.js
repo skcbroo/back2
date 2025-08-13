@@ -713,6 +713,7 @@ app.get('/api/ativos', ensureAuthenticated, async (req, res) => {
 });
 
 // === RETORNO PROJETADO ===
+// === RETORNO PROJETADO ===
 app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
   try {
     const cotas = await prisma.cota.findMany({
@@ -743,7 +744,7 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
 
       // === APORTES PARA CURVA CDI ===
       if (cota.dataAquisicao && credito.quantidadeCotas && credito.quantidadeCotas > 0) {
-        const valorCota = credito.preco / credito.quantidadeCotas;
+        const valorCota = credito.preco / credito.quantidadeCotas; // <- valor de aquisição
         aquisicoes.push({
           data: new Date(cota.dataAquisicao),
           valor: cota.quantidade * valorCota,
@@ -751,6 +752,7 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
       }
     }
 
+    // === ORGANIZA RETORNO PROJETADO ===
     const ordenado = Object.entries(agrupado)
       .map(([mes, valor]) => {
         const [mesAbrev, ano] = mes.split('/');
@@ -761,72 +763,59 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
 
     if (ordenado.length === 0) return res.json({ retornoPorMes: [], comparativoCDI: [] });
 
-    // === Define o intervalo de meses ===
-    const primeiraAquisicao = aquisicoes.length > 0
-      ? new Date(Math.min(...aquisicoes.map(a => a.data.getTime())))
-      : ordenado[0].dataReal;
-
-    const ultimaEstimativa = ordenado[ordenado.length - 1].dataReal;
-
-    let atual = startOfMonth(primeiraAquisicao);
-    const fim = startOfMonth(ultimaEstimativa);
-
     const preenchido = [];
     let acumulado = 0;
+    let atual = ordenado[0].dataReal;
+    const fim = ordenado[ordenado.length - 1].dataReal;
     let i = 0;
 
-    while (!isAfter(atual, fim)) {
+    while (!isBefore(fim, atual)) {
       const mes = format(atual, "MMM/yyyy", { locale: ptBR });
-
-      if (
-        ordenado[i] &&
-        format(ordenado[i].dataReal, "MMM/yyyy", { locale: ptBR }) === mes
-      ) {
+      if (ordenado[i] && format(ordenado[i].dataReal, "MMM/yyyy", { locale: ptBR }) === mes) {
         acumulado += ordenado[i].valor;
         i++;
       }
-
       preenchido.push({ mes, valor: acumulado });
       atual = addMonths(atual, 1);
     }
 
-    // === CURVA CDI ACUMULADA ===
+    // === CALCULA CURVA CDI (base: valor de aquisição acumulado) ===
     const taxaCDIMensal = Math.pow(1 + 0.15, 1 / 12) - 1;
     const listaMeses = preenchido.map((p) => p.mes);
 
+    // Ordena aquisições por data
     const aquisicoesOrdenadas = aquisicoes
       .filter(a => a.data && a.valor)
       .sort((a, b) => a.data - b.data);
 
+    // Inicializa mapa com zero em todos os meses
     const mapaCDI = {};
     for (const mes of listaMeses) {
       mapaCDI[mes] = 0;
     }
 
     let montante = 0;
-    let aportesPendentes = [...aquisicoesOrdenadas];
+    let mesAnterior = null;
 
     for (const mes of listaMeses) {
-      const novosAportes = aportesPendentes.filter((a) => {
-        const mesAq = format(a.data, "MMM/yyyy", { locale: ptBR });
-        return mesAq === mes;
-      });
+      for (const aq of aquisicoesOrdenadas) {
+        const mesAq = format(aq.data, "MMM/yyyy", { locale: ptBR });
+        if (mesAq === mes) {
+          montante += aq.valor;
+        }
+      }
 
-      const totalNovo = novosAportes.reduce((soma, a) => soma + a.valor, 0);
-      montante += totalNovo;
+      if (mesAnterior !== null) {
+        montante *= 1 + taxaCDIMensal;
+      }
 
-      aportesPendentes = aportesPendentes.filter((a) => {
-        const mesAq = format(a.data, "MMM/yyyy", { locale: ptBR });
-        return mesAq !== mes;
-      });
-
-      montante *= 1 + taxaCDIMensal;
-      mapaCDI[mes] = Number(montante.toFixed(2));
+      mapaCDI[mes] = montante;
+      mesAnterior = mes;
     }
 
     const comparativoCDI = listaMeses.map((mes) => ({
       mes,
-      valor: mapaCDI[mes],
+      valor: Number((mapaCDI[mes] || 0).toFixed(2)),
     }));
 
     res.json({
@@ -858,11 +847,6 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
-
-
-
-
-
 
 
 
