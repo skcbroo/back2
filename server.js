@@ -753,31 +753,39 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
     }
 
     // === ORGANIZA RETORNO PROJETADO ===
-    const ordenado = Object.entries(agrupado)
-      .map(([mes, valor]) => {
-        const [mesAbrev, ano] = mes.split('/');
-        const dataReal = parse(`01/${mesAbrev}/${ano}`, 'dd/MMM/yyyy', new Date(), { locale: ptBR });
-        return { mes, valor, dataReal };
-      })
-      .sort((a, b) => a.dataReal - b.dataReal);
+const ordenado = Object.entries(agrupado)
+  .map(([mes, valor]) => {
+    const [mesAbrev, ano] = mes.split('/');
+    const dataReal = parse(`01/${mesAbrev}/${ano}`, 'dd/MMM/yyyy', new Date(), { locale: ptBR });
+    return { mes, valor, dataReal };
+  })
+  .sort((a, b) => a.dataReal - b.dataReal);
 
-    if (ordenado.length === 0) return res.json({ retornoPorMes: [], comparativoCDI: [] });
+if (ordenado.length === 0) return res.json({ retornoPorMes: [], comparativoCDI: [] });
 
-    const preenchido = [];
-    let acumulado = 0;
-    let atual = ordenado[0].dataReal;
-    const fim = ordenado[ordenado.length - 1].dataReal;
-    let i = 0;
+// 🔹 Define início: 1ª aquisição
+const dataInicio = aquisicoes.length > 0
+  ? new Date(Math.min(...aquisicoes.map(a => a.data.getTime())))
+  : ordenado[0].dataReal;
 
-    while (!isBefore(fim, atual)) {
-      const mes = format(atual, "MMM/yyyy", { locale: ptBR });
-      if (ordenado[i] && format(ordenado[i].dataReal, "MMM/yyyy", { locale: ptBR }) === mes) {
-        acumulado += ordenado[i].valor;
-        i++;
-      }
-      preenchido.push({ mes, valor: acumulado });
-      atual = addMonths(atual, 1);
-    }
+// 🔹 Define fim: último pagamento
+const dataFim = ordenado[ordenado.length - 1].dataReal;
+
+const preenchido = [];
+let acumulado = 0;
+let atual = dataInicio;
+let i = 0;
+
+while (!isAfter(atual, dataFim)) {
+  const mes = format(atual, "MMM/yyyy", { locale: ptBR });
+  if (ordenado[i] && format(ordenado[i].dataReal, "MMM/yyyy", { locale: ptBR }) === mes) {
+    acumulado += ordenado[i].valor;
+    i++;
+  }
+  preenchido.push({ mes, valor: acumulado });
+  atual = addMonths(atual, 1);
+}
+
 
     // === CALCULA CURVA CDI (base: valor de aquisição acumulado) ===
     const taxaCDIMensal = Math.pow(1 + 0.15, 1 / 12) - 1;
@@ -847,6 +855,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
