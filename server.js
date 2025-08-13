@@ -774,12 +774,14 @@ const inicio = aquisicoes.length > 0
   : ordenado[0].dataReal;
 
 // 🔼 NOVO FIM: maior data estimada de pagamento (projeção)
-const fim = new Date(Math.max(
+const dataMaxima = new Date(Math.max(
   ...cotas
     .map((c) => c.creditoJudicial.dataEstimadaPagamento)
     .filter(Boolean)
     .map((d) => new Date(d).getTime())
 ));
+
+const fim = addMonths(dataMaxima, 1); // ✅ folga de 1 mês
 
 const preenchido = [];
 let acumulado = 0;
@@ -865,6 +867,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
