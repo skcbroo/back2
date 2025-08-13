@@ -773,7 +773,15 @@ const dataInicioCDI =
 const preenchido = [];
 let acumulado = 0;
 let atual = dataInicioCDI;
-const fim = ordenado[ordenado.length - 1].dataReal;
+const ultimaDataRetorno = ordenado[ordenado.length - 1].dataReal;
+const ultimaDataAquisicao = aquisicoes.length > 0
+  ? new Date(Math.max(...aquisicoes.map((a) => a.data.getTime())))
+  : ultimaDataRetorno;
+
+const fim = ultimaDataRetorno > ultimaDataAquisicao
+  ? ultimaDataRetorno
+  : ultimaDataAquisicao;
+
 let i = 0;
 
 while (!isBefore(fim, atual)) {
@@ -862,6 +870,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
