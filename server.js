@@ -1,4 +1,3 @@
-
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -712,7 +711,9 @@ app.get('/api/ativos', ensureAuthenticated, async (req, res) => {
     res.status(500).json({ erro: "Erro ao buscar ativos" });
   }
 });
-//Retorno projetado
+
+// === RETORNO PROJETADO ===
+// === RETORNO PROJETADO ===
 app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
   try {
     const cotas = await prisma.cota.findMany({
@@ -722,7 +723,6 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
 
     const agrupado = {};
     const aquisicoes = [];
-    let ultimaDataPagamento = null;
 
     for (const cota of cotas) {
       const credito = cota.creditoJudicial;
@@ -740,16 +740,11 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
         const retornoPorCota = credito.valor / credito.quantidadeCotas;
         const valorProjetado = cota.quantidade * retornoPorCota;
         agrupado[mes] = (agrupado[mes] || 0) + valorProjetado;
-
-        // 🔹 Atualiza data final do gráfico
-        if (!ultimaDataPagamento || dataPagamento > ultimaDataPagamento) {
-          ultimaDataPagamento = dataPagamento;
-        }
       }
 
       // === APORTES PARA CURVA CDI ===
       if (cota.dataAquisicao && credito.quantidadeCotas && credito.quantidadeCotas > 0) {
-        const valorCota = credito.preco / credito.quantidadeCotas;
+        const valorCota = credito.preco / credito.quantidadeCotas; // <- valor de aquisição
         aquisicoes.push({
           data: new Date(cota.dataAquisicao),
           valor: cota.quantidade * valorCota,
@@ -758,83 +753,69 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
     }
 
     // === ORGANIZA RETORNO PROJETADO ===
-    
-const ordenado = Object.entries(agrupado)
-  .map(([mes, valor]) => {
-    const [mesAbrev, ano] = mes.split('/');
-    const dataReal = parse(`01/${mesAbrev}/${ano}`, 'dd/MMM/yyyy', new Date(), { locale: ptBR });
-    return { mes, valor, dataReal };
-  })
-  .sort((a, b) => a.dataReal - b.dataReal);
+    const ordenado = Object.entries(agrupado)
+      .map(([mes, valor]) => {
+        const [mesAbrev, ano] = mes.split('/');
+        const dataReal = parse(`01/${mesAbrev}/${ano}`, 'dd/MMM/yyyy', new Date(), { locale: ptBR });
+        return { mes, valor, dataReal };
+      })
+      .sort((a, b) => a.dataReal - b.dataReal);
 
-// Se não tiver nenhum dado, retorna vazio
-if (ordenado.length === 0) {
-  return res.json({ retornoPorMes: [], comparativoCDI: [] });
-}
+    if (ordenado.length === 0) return res.json({ retornoPorMes: [], comparativoCDI: [] });
 
-// 🔹 Data inicial: menor data entre aquisição e pagamento
-const dataInicio = aquisicoes.length > 0
-  ? new Date(Math.min(...aquisicoes.map((a) => a.data.getTime())))
-  : ordenado[0].dataReal;
+    const preenchido = [];
+    let acumulado = 0;
+    let atual = ordenado[0].dataReal;
+    const fim = ordenado[ordenado.length - 1].dataReal;
+    let i = 0;
 
-// 🔹 Data final: maior data de pagamento estimada
-const dataFim = new Date(Math.max(...ordenado.map((o) => o.dataReal.getTime())));
+    while (!isBefore(fim, atual)) {
+      const mes = format(atual, "MMM/yyyy", { locale: ptBR });
+      if (ordenado[i] && format(ordenado[i].dataReal, "MMM/yyyy", { locale: ptBR }) === mes) {
+        acumulado += ordenado[i].valor;
+        i++;
+      }
+      preenchido.push({ mes, valor: acumulado });
+      atual = addMonths(atual, 1);
+    }
 
-const preenchido = [];
-let acumulado = 0;
-let atual = startOfMonth(dataInicio);
-const fim = startOfMonth(dataFim);
-let i = 0;
-
-while (!isAfter(atual, fim)) {
-  const mes = format(atual, "MMM/yyyy", { locale: ptBR });
-  if (ordenado[i] && format(ordenado[i].dataReal, "MMM/yyyy", { locale: ptBR }) === mes) {
-    acumulado += ordenado[i].valor;
-    i++;
-  }
-
-  preenchido.push({ mes, valor: acumulado });
-  atual = addMonths(atual, 1);
-}
-
-
-    // === CALCULA CURVA CDI ===
+    // === CALCULA CURVA CDI (base: valor de aquisição acumulado) ===
     const taxaCDIMensal = Math.pow(1 + 0.15, 1 / 12) - 1;
     const listaMeses = preenchido.map((p) => p.mes);
 
+    // Ordena aquisições por data
     const aquisicoesOrdenadas = aquisicoes
       .filter(a => a.data && a.valor)
       .sort((a, b) => a.data - b.data);
 
+    // Inicializa mapa com zero em todos os meses
     const mapaCDI = {};
     for (const mes of listaMeses) {
       mapaCDI[mes] = 0;
     }
 
     let montante = 0;
-    let aportesPendentes = [...aquisicoesOrdenadas];
+    let mesAnterior = null;
 
     for (const mes of listaMeses) {
-      const novosAportes = aportesPendentes.filter((a) => {
-        const mesAq = format(a.data, "MMM/yyyy", { locale: ptBR });
-        return mesAq === mes;
-      });
+      for (const aq of aquisicoesOrdenadas) {
+        const mesAq = format(aq.data, "MMM/yyyy", { locale: ptBR });
+        if (mesAq === mes) {
+          montante += aq.valor;
+        }
+      }
 
-      const totalNovo = novosAportes.reduce((soma, a) => soma + a.valor, 0);
-      montante += totalNovo;
+      if (mesAnterior !== null) {
+        montante *= 1 + taxaCDIMensal;
+      }
 
-      aportesPendentes = aportesPendentes.filter((a) => {
-        const mesAq = format(a.data, "MMM/yyyy", { locale: ptBR });
-        return mesAq !== mes;
-      });
-
-      montante *= 1 + taxaCDIMensal;
-      mapaCDI[mes] = Number(montante.toFixed(2));
+      mapaCDI[mes] = montante;
+      mesAnterior = mes;
     }
 
     const comparativoCDI = listaMeses.map((mes) => ({
       mes,
-      valor: mapaCDI[mes] || 0,
+      valor: Number((mapaCDI[mes] || 0).toFixed(2)),
     }));
 
     res.json({
@@ -846,8 +827,6 @@ while (!isAfter(atual, fim)) {
     res.status(500).json({ erro: "Erro ao calcular retorno projetado" });
   }
 });
-
-
 
 
 // Promover usuário a admin (admin)
@@ -868,7 +847,6 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
-
 
 
 
