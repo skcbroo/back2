@@ -782,7 +782,7 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
     let atual = dataInicio;
     let i = 0;
 
-    while (!isBefore(ultimaDataPagamento, atual)) {
+    while (!isAfter(atual, ultimaDataPagamento)) {
       const mes = format(atual, "MMM/yyyy", { locale: ptBR });
       if (ordenado[i] && format(ordenado[i].dataReal, "MMM/yyyy", { locale: ptBR }) === mes) {
         acumulado += ordenado[i].valor;
@@ -862,6 +862,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
