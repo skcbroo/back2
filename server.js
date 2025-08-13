@@ -781,8 +781,56 @@ app.get('/api/retorno-projetado', ensureAuthenticated, async (req, res) => {
     }
 
     // === CALCULA CURVA CDI (base: valor de aquisição acumulado) ===
-    const taxaCDIMensal = Math.pow(1 + 0.15, 1 / 12) - 1;
-    const listaMeses = preenchido.map((p) => p.mes);
+    // === CALCULA CURVA CDI (base: valor de aquisição acumulado) ===
+const taxaCDIMensal = Math.pow(1 + 0.15, 1 / 12) - 1;
+
+// Ordena aquisições por data
+const aquisicoesOrdenadas = aquisicoes
+  .filter(a => a.data && a.valor)
+  .sort((a, b) => a.data - b.data);
+
+if (aquisicoesOrdenadas.length === 0) {
+  return res.json({ retornoPorMes: preenchido, comparativoCDI: [] });
+}
+
+// Define intervalo de meses para CDI (da 1ª aquisição até o último retorno)
+const dataInicioCDI = startOfMonth(aquisicoesOrdenadas[0].data);
+const dataFimCDI = startOfMonth(ordenado[ordenado.length - 1].dataReal);
+
+const listaMeses = [];
+let dataAtual = new Date(dataInicioCDI);
+while (!isAfter(dataAtual, dataFimCDI)) {
+  listaMeses.push(format(dataAtual, "MMM/yyyy", { locale: ptBR }));
+  dataAtual = addMonths(dataAtual, 1);
+}
+
+// Inicializa curva CDI
+const mapaCDI = {};
+let montante = 0;
+let aportesPendentes = [...aquisicoesOrdenadas];
+
+for (const mes of listaMeses) {
+  const novosAportes = aportesPendentes.filter((a) =>
+    format(a.data, "MMM/yyyy", { locale: ptBR }) === mes
+  );
+
+  const totalDoMes = novosAportes.reduce((acc, a) => acc + a.valor, 0);
+  montante += totalDoMes;
+
+  montante *= 1 + taxaCDIMensal;
+  mapaCDI[mes] = Number(montante.toFixed(2));
+
+  // Remove os aportes já aplicados
+  aportesPendentes = aportesPendentes.filter((a) =>
+    format(a.data, "MMM/yyyy", { locale: ptBR }) !== mes
+  );
+}
+
+const comparativoCDI = listaMeses.map((mes) => ({
+  mes,
+  valor: mapaCDI[mes] || 0,
+}));
+
 
     // Ordena aquisições por data
     const aquisicoesOrdenadas = aquisicoes
@@ -848,6 +896,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
