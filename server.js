@@ -366,7 +366,54 @@ app.post('/api/creditos/:id/confirmar', ensureAuthenticated, async (req, res) =>
 });
 
 // Criar cota manualmente (admin)
+// Criar cota manualmente (admin)
 app.post('/api/cotas', ensureAuthenticated, ensureAdmin, async (req, res) => {
+  const { usuarioId, creditoJudicialId, quantidade, dataAquisicao, dataPagamentoReal } = req.body;
+
+  if (!usuarioId || !creditoJudicialId || !quantidade) {
+    return res.status(400).json({ erro: 'Dados incompletos: usuarioId, creditoJudicialId e quantidade são obrigatórios' });
+  }
+
+  try {
+    const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId } });
+    if (!usuario) return res.status(404).json({ erro: 'Usuário não encontrado' });
+
+    // ❌ não buscamos mais o crédito para conferir capacidade
+    const cotaExistente = await prisma.cota.findUnique({
+      where: { usuarioId_creditoJudicialId: { usuarioId, creditoJudicialId } },
+    });
+
+    if (cotaExistente) {
+      await prisma.cota.update({
+        where: { usuarioId_creditoJudicialId: { usuarioId, creditoJudicialId } },
+        data: {
+          quantidade: { increment: quantidade },
+          dataAquisicao: dataAquisicao ? new Date(dataAquisicao) : cotaExistente.dataAquisicao,
+          dataPagamentoReal: dataPagamentoReal ? new Date(dataPagamentoReal) : cotaExistente.dataPagamentoReal,
+        },
+      });
+    } else {
+      await prisma.cota.create({
+        data: {
+          usuarioId,
+          creditoJudicialId,
+          quantidade,
+          dataAquisicao: dataAquisicao ? new Date(dataAquisicao) : null,
+          dataPagamentoReal: dataPagamentoReal ? new Date(dataPagamentoReal) : null,
+        },
+      });
+    }
+
+    // ❌ não recalcula mais `cotasAdquiridas` aqui
+    res.json({ msg: 'Cota registrada com sucesso' });
+  } catch (err) {
+    console.error('Erro ao registrar cota:', err);
+    res.status(500).json({ erro: 'Erro ao registrar cota', detalhes: err.message });
+  }
+});
+
+
+/*app.post('/api/cotas', ensureAuthenticated, ensureAdmin, async (req, res) => {
   const {
     usuarioId,
     creditoJudicialId,
@@ -450,7 +497,7 @@ app.post('/api/cotas', ensureAuthenticated, ensureAdmin, async (req, res) => {
     console.error('Erro ao registrar cota:', err);
     res.status(500).json({ erro: 'Erro ao registrar cota', detalhes: err.message });
   }
-});
+});*/
 
 
 app.get('/api/cotas', ensureAuthenticated, ensureAdmin, async (req, res) => {
@@ -867,6 +914,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
