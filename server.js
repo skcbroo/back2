@@ -895,6 +895,68 @@ while (!isBefore(fim, atual)) {
   }
 });
 
+// RETORNO GERAL DOS ATIVOS
+app.get("/api/retorno-agenciado", async (req, res) => {
+  try {
+    const cotas = await prisma.cota.findMany({
+      include: { creditoJudicial: true },
+    });
+
+    const agrupado = {}; // { "Ago/2025": valorTotal }
+
+    for (const cota of cotas) {
+      const credito = cota.creditoJudicial;
+      if (!credito || !credito.valor || !credito.quantidadeCotas || credito.quantidadeCotas === 0)
+        continue;
+
+      const status = (credito.status || "").toLowerCase();
+      const dataPagamento =
+        status.includes("pago") && cota.dataPagamentoReal
+          ? new Date(cota.dataPagamentoReal)
+          : credito.dataEstimadaPagamento
+          ? new Date(credito.dataEstimadaPagamento)
+          : null;
+
+      if (!dataPagamento) continue;
+
+      const valorPorCota = credito.valor / credito.quantidadeCotas;
+      const valorTotal = valorPorCota * cota.quantidade;
+
+      const mes = format(dataPagamento, "MMM/yyyy", { locale: ptBR });
+      agrupado[mes] = (agrupado[mes] || 0) + valorTotal;
+    }
+
+    const parseMes = (m) => {
+      const [abbr, ano] = m.split("/");
+      const mapa = {
+        jan: 0, fev: 1, mar: 2, abr: 3, mai: 4, jun: 5,
+        jul: 6, ago: 7, set: 8, out: 9, nov: 10, dez: 11,
+      };
+      return new Date(Number(ano), mapa[abbr.toLowerCase()], 1).getTime();
+    };
+
+    const mesesOrdenados = Object.keys(agrupado).sort((a, b) => parseMes(a) - parseMes(b));
+    const retornoPorMes = mesesOrdenados.map((mes) => ({
+      mes,
+      valor: Number(agrupado[mes].toFixed(2)),
+    }));
+
+    // Simula CDI acumulado (taxa 15% a.a. → 1,171% a.m.)
+    const taxaMensal = Math.pow(1 + 0.15, 1 / 12) - 1;
+    let acumulado = 0;
+    const comparativoCDI = retornoPorMes.map(({ mes, valor }) => {
+      acumulado += valor;
+      const rendimentoCDI = acumulado * taxaMensal;
+      return { mes, valor: Number(rendimentoCDI.toFixed(2)) };
+    });
+
+    res.json({ retornoPorMes, comparativoCDI });
+  } catch (err) {
+    console.error("Erro no /api/retorno-agenciado:", err);
+    res.status(500).json({ erro: "Erro ao calcular retorno agenciado" });
+  }
+});
+
 
 // Promover usuário a admin (admin)
 app.post('/api/usuarios/promover', ensureAuthenticated, ensureAdmin, async (req, res) => {
@@ -914,6 +976,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
