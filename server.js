@@ -902,57 +902,110 @@ app.get("/api/retorno-agenciado", async (req, res) => {
       include: { creditoJudicial: true },
     });
 
-    const agrupado = {}; // { "Ago/2025": valorTotal }
+    const agrupado = {};
+    const aquisicoes = [];
 
     for (const cota of cotas) {
       const credito = cota.creditoJudicial;
-      if (!credito || !credito.valor || !credito.quantidadeCotas || credito.quantidadeCotas === 0)
+
+      if (!credito || !credito.quantidadeCotas || credito.quantidadeCotas === 0)
         continue;
 
-      const status = (credito.status || "").toLowerCase();
+      // === CURVA DE RETORNO PROJETADO ===
       const dataPagamento =
-        status.includes("pago") && cota.dataPagamentoReal
+        credito.status === "Pago" && cota.dataPagamentoReal
           ? new Date(cota.dataPagamentoReal)
           : credito.dataEstimadaPagamento
           ? new Date(credito.dataEstimadaPagamento)
           : null;
 
-      if (!dataPagamento) continue;
+      if (dataPagamento) {
+        const mes = format(dataPagamento, "MMM/yyyy", { locale: ptBR });
+        const retornoPorCota = credito.valor / credito.quantidadeCotas;
+        const valorProjetado = cota.quantidade * retornoPorCota;
+        agrupado[mes] = (agrupado[mes] || 0) + valorProjetado;
+      }
 
-      const valorPorCota = credito.valor / credito.quantidadeCotas;
-      const valorTotal = valorPorCota * cota.quantidade;
-
-      const mes = format(dataPagamento, "MMM/yyyy", { locale: ptBR });
-      agrupado[mes] = (agrupado[mes] || 0) + valorTotal;
+      // === APORTES PARA CDI ===
+      if (cota.dataAquisicao) {
+        const valorCota = credito.preco / credito.quantidadeCotas;
+        aquisicoes.push({
+          data: new Date(cota.dataAquisicao),
+          valor: cota.quantidade * valorCota,
+        });
+      }
     }
 
-    const parseMes = (m) => {
-      const [abbr, ano] = m.split("/");
-      const mapa = {
-        jan: 0, fev: 1, mar: 2, abr: 3, mai: 4, jun: 5,
-        jul: 6, ago: 7, set: 8, out: 9, nov: 10, dez: 11,
-      };
-      return new Date(Number(ano), mapa[abbr.toLowerCase()], 1).getTime();
-    };
+    // === ORGANIZA RETORNO PROJETADO COM BASE NO PERÍODO ===
+    const ordenado = Object.entries(agrupado)
+      .map(([mes, valor]) => {
+        const [mesAbrev, ano] = mes.split("/");
+        const dataReal = parse(`01/${mesAbrev}/${ano}`, "dd/MMM/yyyy", new Date(), { locale: ptBR });
+        return { mes, valor, dataReal };
+      })
+      .sort((a, b) => a.dataReal - b.dataReal);
 
-    const mesesOrdenados = Object.keys(agrupado).sort((a, b) => parseMes(a) - parseMes(b));
-    const retornoPorMes = mesesOrdenados.map((mes) => ({
+    if (ordenado.length === 0) {
+      return res.json({ retornoPorMes: [], comparativoCDI: [] });
+    }
+
+    const inicio = aquisicoes.length > 0
+      ? new Date(Math.min(...aquisicoes.map((a) => a.data.getTime())))
+      : ordenado[0].dataReal;
+
+    const dataMaxima = new Date(Math.max(
+      ...cotas.map((c) => c.creditoJudicial.dataEstimadaPagamento).filter(Boolean).map((d) => new Date(d).getTime())
+    ));
+
+    const fim = addMonths(dataMaxima, 1);
+    const preenchido = [];
+    let acumulado = 0;
+    let atual = inicio;
+    let i = 0;
+
+    while (!isBefore(fim, atual)) {
+      const mes = format(atual, "MMM/yyyy", { locale: ptBR });
+      if (ordenado[i] && format(ordenado[i].dataReal, "MMM/yyyy", { locale: ptBR }) === mes) {
+        acumulado += ordenado[i].valor;
+        i++;
+      }
+      preenchido.push({ mes, valor: Number(acumulado.toFixed(2)) });
+      atual = addMonths(atual, 1);
+    }
+
+    // === CDI acumulado
+    const taxaCDIMensal = Math.pow(1 + 0.15, 1 / 12) - 1;
+    const listaMeses = preenchido.map((p) => p.mes);
+    const aquisicoesOrdenadas = aquisicoes.sort((a, b) => a.data - b.data);
+
+    const mapaCDI = {};
+    let montante = 0;
+    let mesAnterior = null;
+
+    for (const mes of listaMeses) {
+      for (const aq of aquisicoesOrdenadas) {
+        const mesAq = format(aq.data, "MMM/yyyy", { locale: ptBR });
+        if (mesAq === mes) {
+          montante += aq.valor;
+        }
+      }
+
+      if (mesAnterior !== null) {
+        montante *= 1 + taxaCDIMensal;
+      }
+
+      mapaCDI[mes] = Number(montante.toFixed(2));
+      mesAnterior = mes;
+    }
+
+    const comparativoCDI = listaMeses.map((mes) => ({
       mes,
-      valor: Number(agrupado[mes].toFixed(2)),
+      valor: mapaCDI[mes],
     }));
 
-    // Simula CDI acumulado (taxa 15% a.a. → 1,171% a.m.)
-    const taxaMensal = Math.pow(1 + 0.15, 1 / 12) - 1;
-    let acumulado = 0;
-    const comparativoCDI = retornoPorMes.map(({ mes, valor }) => {
-      acumulado += valor;
-      const rendimentoCDI = acumulado * taxaMensal;
-      return { mes, valor: Number(rendimentoCDI.toFixed(2)) };
-    });
-
-    res.json({ retornoPorMes, comparativoCDI });
+    res.json({ retornoPorMes: preenchido, comparativoCDI });
   } catch (err) {
-    console.error("Erro no /api/retorno-agenciado:", err);
+    console.error("Erro ao calcular retorno agenciado:", err);
     res.status(500).json({ erro: "Erro ao calcular retorno agenciado" });
   }
 });
@@ -976,6 +1029,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
