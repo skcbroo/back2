@@ -1,23 +1,22 @@
-import express from 'express';//
-import cors from 'cors';
-import dotenv from 'dotenv';
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { ensureAuthenticated, ensureAdmin, tryExtractUser } from './auth.js';
-import crypto from "crypto";
+import "dotenv/config";
+
+import express from "express";
+import cors from "cors";
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { ensureAuthenticated, ensureAdmin, tryExtractUser } from "./auth.js";
+import crypto from "node:crypto";
 import nodemailer from "nodemailer";
-import { ptBR } from 'date-fns/locale';
+import { ptBR } from "date-fns/locale";
 import { format, parse, addMonths, isBefore } from "date-fns";
-
-
 
 const app = express();
 const prisma = new PrismaClient();
-dotenv.config();
 
 app.use(cors());
 app.use(express.json());
+
 
 // === ROTAS ===
 
@@ -1029,6 +1028,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
