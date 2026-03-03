@@ -10,13 +10,14 @@ import crypto from "node:crypto";
 import nodemailer from "nodemailer";
 import { ptBR } from "date-fns/locale";
 import { format, parse, addMonths, isBefore } from "date-fns";
+import dashboardRoute from "./dashboardRoute.js";
 
 const app = express();
 const prisma = new PrismaClient();
 
 app.use(cors());
 app.use(express.json());
-
+app.use("/api", dashboardRoute);
 
 // === ROTAS ===
 
@@ -1028,6 +1029,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
