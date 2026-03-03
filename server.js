@@ -1,8 +1,8 @@
 import "dotenv/config";
-
+import { prisma } from "./prisma.js";
 import express from "express";
 import cors from "cors";
-import { PrismaClient } from "@prisma/client";
+
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { ensureAuthenticated, ensureAdmin, tryExtractUser } from "./auth.js";
@@ -13,7 +13,7 @@ import { format, parse, addMonths, isBefore } from "date-fns";
 import dashboardRoute from "./dashboardRoute.js";
 
 const app = express();
-const prisma = new PrismaClient();
+
 
 app.use(cors());
 app.use(express.json());
@@ -1029,6 +1029,7 @@ app.get('/', (req, res) => {
 // Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
 
 
 
